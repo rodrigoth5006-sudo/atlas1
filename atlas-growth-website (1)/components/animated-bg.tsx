@@ -26,21 +26,24 @@ const VIOLET_LIGHT = "124, 58, 237"
 const VIOLET_BRIGHT = "139, 92, 246"
 
 export default function AnimatedBg() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    let animId: number
+    let animId = 0
     let nodes: Node[] = []
     let particles: Particle[] = []
     let w = 0
     let h = 0
 
     function resize() {
+      if (!canvas) return
+
       w = canvas.offsetWidth
       h = canvas.offsetHeight
       canvas.width = w
@@ -51,9 +54,11 @@ export default function AnimatedBg() {
     function init() {
       const nodeCount = Math.min(Math.floor((w * h) / 14000), 55)
       nodes = []
+
       for (let i = 0; i < nodeCount; i++) {
         const type: Node["type"] =
           i < 4 ? "hub" : i < nodeCount * 0.35 ? "data" : "micro"
+
         nodes.push({
           x: Math.random() * w,
           y: Math.random() * h,
@@ -66,15 +71,22 @@ export default function AnimatedBg() {
         })
       }
 
-      // seed initial particles
       particles = []
-      for (let i = 0; i < 18; i++) spawnParticle()
+      for (let i = 0; i < 18; i++) {
+        spawnParticle()
+      }
     }
 
     function spawnParticle() {
+      if (nodes.length < 2) return
+
       const from = Math.floor(Math.random() * nodes.length)
       let to = Math.floor(Math.random() * nodes.length)
-      while (to === from) to = Math.floor(Math.random() * nodes.length)
+
+      while (to === from) {
+        to = Math.floor(Math.random() * nodes.length)
+      }
+
       particles.push({
         progress: 0,
         speed: 0.003 + Math.random() * 0.004,
@@ -93,46 +105,67 @@ export default function AnimatedBg() {
     function draw(time: number) {
       ctx.clearRect(0, 0, w, h)
 
-      // ── Light background ──────────────────────────────────────────────────
-      const bg = ctx.createRadialGradient(w * 0.55, h * 0.35, 0, w * 0.55, h * 0.35, Math.max(w, h) * 0.9)
-      bg.addColorStop(0, `rgba(245, 240, 255, 1)`)
-      bg.addColorStop(0.5, `rgba(250, 248, 255, 1)`)
-      bg.addColorStop(1, `rgba(255, 255, 255, 1)`)
+      const bg = ctx.createRadialGradient(
+        w * 0.55,
+        h * 0.35,
+        0,
+        w * 0.55,
+        h * 0.35,
+        Math.max(w, h) * 0.9
+      )
+      bg.addColorStop(0, "rgba(245, 240, 255, 1)")
+      bg.addColorStop(0.5, "rgba(250, 248, 255, 1)")
+      bg.addColorStop(1, "rgba(255, 255, 255, 1)")
       ctx.fillStyle = bg
       ctx.fillRect(0, 0, w, h)
 
-      // ── Soft violet orbs ─────────────────────────────────────────────────
-      const orb1 = ctx.createRadialGradient(w * 0.72, h * 0.25, 0, w * 0.72, h * 0.25, w * 0.42)
+      const orb1 = ctx.createRadialGradient(
+        w * 0.72,
+        h * 0.25,
+        0,
+        w * 0.72,
+        h * 0.25,
+        w * 0.42
+      )
       orb1.addColorStop(0, `rgba(${VIOLET_BRIGHT}, 0.13)`)
       orb1.addColorStop(1, `rgba(${VIOLET}, 0.0)`)
       ctx.fillStyle = orb1
       ctx.fillRect(0, 0, w, h)
 
-      const orb2 = ctx.createRadialGradient(w * 0.12, h * 0.72, 0, w * 0.12, h * 0.72, w * 0.32)
+      const orb2 = ctx.createRadialGradient(
+        w * 0.12,
+        h * 0.72,
+        0,
+        w * 0.12,
+        h * 0.72,
+        w * 0.32
+      )
       orb2.addColorStop(0, `rgba(${VIOLET_LIGHT}, 0.10)`)
       orb2.addColorStop(1, `rgba(${VIOLET}, 0.0)`)
       ctx.fillStyle = orb2
       ctx.fillRect(0, 0, w, h)
 
-      // ── Move nodes ────────────────────────────────────────────────────────
       for (const n of nodes) {
         n.x += n.vx
         n.y += n.vy
         n.pulse += n.pulseSpeed
+
         if (n.x < 0 || n.x > w) n.vx *= -1
         if (n.y < 0 || n.y > h) n.vy *= -1
       }
 
-      // ── Draw connections ──────────────────────────────────────────────────
       const maxDist = w < 768 ? 160 : 220
+
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dist = getConnection(nodes[i], nodes[j])
+
           if (dist < maxDist) {
             const alpha = (1 - dist / maxDist) * 0.18
             ctx.beginPath()
             ctx.strokeStyle = `rgba(${VIOLET}, ${alpha})`
-            ctx.lineWidth = nodes[i].type === "hub" || nodes[j].type === "hub" ? 1 : 0.5
+            ctx.lineWidth =
+              nodes[i].type === "hub" || nodes[j].type === "hub" ? 1 : 0.5
             ctx.moveTo(nodes[i].x, nodes[i].y)
             ctx.lineTo(nodes[j].x, nodes[j].y)
             ctx.stroke()
@@ -140,20 +173,17 @@ export default function AnimatedBg() {
         }
       }
 
-      // ── Draw nodes ────────────────────────────────────────────────────────
       for (const n of nodes) {
         const pulseScale = 1 + Math.sin(n.pulse) * 0.25
         const r = n.radius * pulseScale
 
         if (n.type === "hub") {
-          // outer ring
           ctx.beginPath()
           ctx.arc(n.x, n.y, r * 2.8, 0, Math.PI * 2)
           ctx.strokeStyle = `rgba(${VIOLET}, ${0.18 + Math.sin(n.pulse) * 0.07})`
           ctx.lineWidth = 1
           ctx.stroke()
 
-          // glow
           const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 3.5)
           g.addColorStop(0, `rgba(${VIOLET}, 0.22)`)
           g.addColorStop(0.4, `rgba(${VIOLET_LIGHT}, 0.09)`)
@@ -163,7 +193,6 @@ export default function AnimatedBg() {
           ctx.fillStyle = g
           ctx.fill()
 
-          // core
           ctx.beginPath()
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
           ctx.fillStyle = `rgba(${VIOLET}, 1)`
@@ -189,19 +218,21 @@ export default function AnimatedBg() {
         }
       }
 
-      // ── Draw & advance particles ──────────────────────────────────────────
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]
         p.progress += p.speed
 
         const from = nodes[p.fromIdx]
         const to = nodes[p.toIdx]
-        if (!from || !to) { particles.splice(i, 1); continue }
+
+        if (!from || !to) {
+          particles.splice(i, 1)
+          continue
+        }
 
         const px = from.x + (to.x - from.x) * p.progress
         const py = from.y + (to.y - from.y) * p.progress
 
-        // trail
         const trailLen = 0.08
         const t0 = Math.max(0, p.progress - trailLen)
         const tx = from.x + (to.x - from.x) * t0
@@ -218,7 +249,6 @@ export default function AnimatedBg() {
         ctx.lineWidth = 1.5
         ctx.stroke()
 
-        // head dot
         const headGlow = ctx.createRadialGradient(px, py, 0, px, py, 4)
         headGlow.addColorStop(0, `rgba(${VIOLET_BRIGHT}, ${p.opacity})`)
         headGlow.addColorStop(0.4, `rgba(${VIOLET}, ${p.opacity * 0.45})`)
@@ -234,19 +264,19 @@ export default function AnimatedBg() {
         }
       }
 
-      // ── Floating data labels ──────────────────────────────────────────────
       const labels = ["SEO", "ROI", "CPC", "CTR", "ROAS", "ADS", "CRM", "KPI"]
       ctx.font = "bold 10px monospace"
+
       for (let i = 0; i < nodes.length && i < labels.length; i++) {
         const n = nodes[i]
+
         if (n.type === "hub") {
-          const alpha = 0.28 + Math.sin(n.pulse * 0.7 + i) * 0.10
+          const alpha = 0.28 + Math.sin(n.pulse * 0.7 + i) * 0.1
           ctx.fillStyle = `rgba(${VIOLET}, ${alpha})`
           ctx.fillText(labels[i % labels.length], n.x + n.radius * 2 + 5, n.y - 4)
         }
       }
 
-      // ── Scanline sweep ────────────────────────────────────────────────────
       const scanY = ((time * 0.04) % (h + 60)) - 30
       const scanGrad = ctx.createLinearGradient(0, scanY, 0, scanY + 60)
       scanGrad.addColorStop(0, `rgba(${VIOLET}, 0)`)
@@ -259,7 +289,11 @@ export default function AnimatedBg() {
     }
 
     resize()
-    const ro = new ResizeObserver(resize)
+
+    const ro = new ResizeObserver(() => {
+      resize()
+    })
+
     ro.observe(canvas)
     animId = requestAnimationFrame(draw)
 
@@ -272,7 +306,7 @@ export default function AnimatedBg() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
+      className="absolute inset-0 h-full w-full"
       aria-hidden="true"
       style={{ display: "block" }}
     />
